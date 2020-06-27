@@ -1,0 +1,10 @@
+----------------------------------------------------------------
+2020-05-06 17:15:53.701 GMT:
+ Booting Derby version The Apache Software Foundation - Apache Derby - 10.5.0.0 alpha - (1): instance a816c00e-0171-eafc-9328-000001be1cf8
+on database directory /home/database/derby4193/derby-8e21cdc055d1420f38923bfadd2fecfd0b9cbed9/java/demo/toursdb/toursdb  
+
+Database Class Loader started - derby.database.classpath=''
+
+2020-05-06 17:15:53.904 GMT:
+Shutting down instance a816c00e-0171-eafc-9328-000001be1cf8
+----------------------------------------------------------------
