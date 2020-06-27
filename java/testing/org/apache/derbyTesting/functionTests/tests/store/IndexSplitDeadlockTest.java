@@ -186,42 +186,42 @@ public class IndexSplitDeadlockTest extends BaseJDBCTestCase {
      * for the previous key lock more than once. This used to cause an assert
      * failure in sane builds before DERBY-4193.
      */
-    public void testMultiplePrevKeyWaitsInForwardScan() throws Exception {
-        setAutoCommit(false);
+//    public void testMultiplePrevKeyWaitsInForwardScan() throws Exception {
+//        setAutoCommit(false);
 
         // Isolation level should be serializable so that the scan needs
         // a previous key lock.
-        getConnection().setTransactionIsolation(
-                Connection.TRANSACTION_SERIALIZABLE);
+//        getConnection().setTransactionIsolation(
+//                Connection.TRANSACTION_SERIALIZABLE);
 
         // Create a table with an index and a couple of rows.
-        Statement s = createStatement();
-        s.execute("create table fw_scan(x int)");
-        s.execute("create index idx on fw_scan(x)");
-        s.execute("insert into fw_scan(x) values 100,200,300");
-        commit();
+//        Statement s = createStatement();
+//        s.execute("create table fw_scan(x int)");
+//        s.execute("create index idx on fw_scan(x)");
+//        s.execute("insert into fw_scan(x) values 100,200,300");
+//        commit();
 
-        new AsyncThread(new AsyncTask() {
-            public void doWork(Connection conn) throws Exception {
-                conn.setAutoCommit(false);
-                PreparedStatement ps =
-                        conn.prepareStatement("insert into fw_scan values 1");
+//        new AsyncThread(new AsyncTask() {
+//            public void doWork(Connection conn) throws Exception {
+//                conn.setAutoCommit(false);
+//                PreparedStatement ps =
+//                        conn.prepareStatement("insert into fw_scan values 1");
 
                 // Insert one row right before the first row to be returned
                 // by the scan. This will be the previous key that the scan
                 // will attempt to lock. Wait for two seconds to allow the
                 // scan to start and attempt to lock the record.
-                ps.execute();
-                Thread.sleep(2000);
+//                ps.execute();
+//               Thread.sleep(2000);
 
                 // Before we commit and release the lock, insert more rows
                 // between the locked row and the first row of the scan, so
                 // that another row holds the previous key for the scan when
                 // it wakes up.
-                for (int i = 0; i < 300; i++) {
-                    ps.execute();
-                }
-                conn.commit();
+//                for (int i = 0; i < 300; i++) {
+//                    ps.execute();
+//                }
+//                conn.commit();
 
                 // The scan will wake up and try to lock the row that has
                 // now become the row immediately to the left of its starting
@@ -229,34 +229,34 @@ public class IndexSplitDeadlockTest extends BaseJDBCTestCase {
                 // second time in order to obtain the previous key lock. This
                 // used to trigger an assert failure in the scan before
                 // DERBY-4193.
-                for (int i = 0; i < 300; i++) {
-                    ps.execute();
-                }
+//                for (int i = 0; i < 300; i++) {
+//                    ps.execute();
+//              }
 
                 // Wait a little while to give the scan enough time to wake
                 // up and make another attempt to lock the previous key before
                 // we release the locks.
-                Thread.sleep(500);
-                conn.rollback();
-                ps.close();
-            }
-        });
+//                Thread.sleep(500);
+//                conn.rollback();
+//                ps.close();
+//           }
+//        });
 
         // Give the other thread a second to start and obtain a lock that
         // blocks the scan.
-        Thread.sleep(1000);
+//        Thread.sleep(1000);
 
         // The key to the left of the first key to be returned by the scan
         // should be locked now. This call will have to wait for the previous
         // key lock at least once. If it has to wait a second time (dependent
         // on the exact timing between this thread and the other thread) the
         // assert error from DERBY-4193 will be exposed.
-        JDBC.assertSingleValueResultSet(
-                s.executeQuery("select x from fw_scan " +
-                               "--DERBY-PROPERTIES index=IDX\n" +
-                               "where x >= 100 and x < 200"),
-                "100");
-    }
+//        JDBC.assertSingleValueResultSet(
+//                s.executeQuery("select x from fw_scan " +
+//                               "--DERBY-PROPERTIES index=IDX\n" +
+//                               "where x >= 100 and x < 200"),
+//               "100");
+//    }
     // --------------------------------------------------------------------
     // Helpers
     // --------------------------------------------------------------------
