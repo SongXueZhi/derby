@@ -2847,8 +2847,8 @@ java.sql.SQLException: Database 'toursDB' not found.
 	at org.apache.derby.jdbc.Driver40.getNewEmbedConnection(Driver40.java:68)
 	at org.apache.derby.jdbc.InternalDriver.connect(InternalDriver.java:238)
 	at org.apache.derby.jdbc.AutoloadedDriver.connect(AutoloadedDriver.java:119)
-	at java.sql.DriverManager.getConnection(DriverManager.java:582)
-	at java.sql.DriverManager.getConnection(DriverManager.java:207)
+	at java.sql.DriverManager.getConnection(DriverManager.java:615)
+	at java.sql.DriverManager.getConnection(DriverManager.java:213)
 	at toursdb.insertMaps.main(insertMaps.java:51)
 Caused by: java.sql.SQLException: Database 'toursDB' not found.
 	at org.apache.derby.impl.jdbc.SQLExceptionFactory.getSQLException(SQLExceptionFactory.java:45)
