@@ -2142,7 +2142,6 @@ public abstract class BTreeScan extends OpenBTree implements ScanManager
             throws StandardException {
 
         final Page page = scan_position.current_leaf.getPage();
-
         if (SanityManager.DEBUG) {
             SanityManager.ASSERT(page.isLatched(), "Page is not latched");
             SanityManager.ASSERT(scan_position.current_positionKey == null,

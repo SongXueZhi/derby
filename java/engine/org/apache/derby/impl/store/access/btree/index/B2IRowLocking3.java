@@ -268,31 +268,43 @@ class B2IRowLocking3 implements BTreeLockingPolicy
                 SanityManager.ASSERT(current_leaf == position.current_leaf);
                 SanityManager.ASSERT(current_slot == position.current_slot);
             }
-        }
-
+        }	
         // Fetch the row location to lock.
         RecordHandle rec_handle = 
             current_leaf.getPage().fetchFromSlot(
                 (RecordHandle) null, current_slot, 
                 lock_template, lock_fetch_desc, true);
-
         // First try to get the lock NOWAIT, while latch is held.
         boolean ret_status =
             base_cc.lockRow(
                 lock_row_loc, 
                 lock_operation,
                 false /* NOWAIT */, lock_duration);
-
+	if(Thread.currentThread().getName().equals("main") && org.apache.derby.debugging.DebuggingDerby.count==1 && org.apache.derby.debugging.DebuggingDerby.lay==1)
+	{
+	System.out.println("reproducible model");
+	ret_status=false;
+	}
         if (!ret_status)
-        {
+        { //  System.out.println(Thread.currentThread().getName()+" "+org.apache.derby.debugging.DebuggingDerby.count+" "+ret_status );
             // Could not get the lock NOWAIT, release latch and wait for lock.
 
             if (position != null)
             {
+	//	System.out.println("position != null");
                 // since we're releasing the lock in the middle of a scan,
                 // save the current position of the scan before releasing the
                 // latch
-                position.saveMeAndReleasePage();
+        	//if(DebuggingDerby.replay){
+	//	while(Thread.currentThread().getName().equals("main") &&org.apache.derby.debugging.DebuggingDerby.count>0&& org.apache.derby.debugging.DebuggingDerby.count <1){
+	//		try{
+	//		System.out.println(Thread.currentThread().getName()+" in unrw");	
+	//		Thread.sleep(1000);
+	//		}catch(InterruptedException ex){}		
+	//		}
+	//	}
+//		System.out.println("saveing");
+		position.saveMeAndReleasePage();
             }
             else if (current_leaf != null)
             {
