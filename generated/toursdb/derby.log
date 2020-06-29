@@ -1,0 +1,16 @@
+----------------------------------------------------------------
+Sun Jun 28 15:38:42 UTC 2020:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.11.0.0 alpha - (1): instance a816c00e-0172-fb94-a583-ffff9c397648 
+on database directory /home/database/metedata/derby/derby6692/bic/generated/toursdb/toursdb with class loader sun.misc.Launcher$AppClassLoader@77cde100 
+Loaded from file:/home/database/metedata/derby/derby6692/bic/classes/
+java.vendor=Sun Microsystems Inc.
+java.runtime.version=1.6.0_24-b07
+user.dir=/home/database/metedata/derby/derby6692/bic/java/demo/toursdb
+os.name=Linux
+os.arch=amd64
+os.version=4.19.76-linuxkit
+derby.system.home=/home/database/metedata/derby/derby6692/bic/generated/toursdb
+Database Class Loader started - derby.database.classpath=''
+----------------------------------------------------------------
+Sun Jun 28 15:38:42 UTC 2020:
+Shutting down instance a816c00e-0172-fb94-a583-ffff9c397648 on database directory /home/database/metedata/derby/derby6692/bic/generated/toursdb/toursdb with class loader sun.misc.Launcher$AppClassLoader@77cde100 

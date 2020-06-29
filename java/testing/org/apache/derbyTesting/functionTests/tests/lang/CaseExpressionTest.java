@@ -508,4 +508,291 @@ public class CaseExpressionTest extends BaseJDBCTestCase {
         JDBC.assertSingleValueResultSet(ps.executeQuery(), "0");
     }
 
+    /**
+     * Test how untyped NULLs are handled.
+     */
+    public void testUntypedNulls() throws SQLException {
+        Statement s = createStatement();
+
+        // When all branches specify NULL, then Derby currently returns NULL
+        // with type CHAR(1). It should have raised an error according to the
+        // SQL standard. See DERBY-2002.
+        String[] allNull = {
+            "values case when true then null end",
+            "values case when true then null else null end",
+            "values case when true then null when false then null else null end"
+        };
+        for (String sql : allNull) {
+            JDBC.assertSingleValueResultSet(s.executeQuery(sql), null);
+        }
+
+        // Check that expressions with untyped NULLs compile as long as
+        // there is at least one typed expression.
+        JDBC.assertFullResultSet(s.executeQuery(
+                "select case when a then 1 when b then null end, "
+                    + "case when a then null when b then 1 end, "
+                    + "case when a then null when b then null else 1 end "
+                    + "from (values (false, false), (false, true), "
+                    + " (true, false), (true, true)) v(a, b) order by a, b"),
+            new Object[][] {
+                { null, null, 1    },
+                { null, 1,    null },
+                { 1,    null, null },
+                { 1,    null, null },
+            },
+            false);
+
+        // When there is a typed NULL, its type has to be compatible with
+        // the types of the other expressions.
+        assertCompileError("42X89",
+            "values case when 1<>1 then 'abc' else cast(null as smallint) end");
+    }
+
+    /** Regression test case for DERBY-6577. */
+    public void testQuantifiedComparison() throws SQLException {
+        // This query used to return wrong results.
+        JDBC.assertUnorderedResultSet(createStatement().executeQuery(
+                "select c, case when c = all (values 'Y') then true end "
+                + "from (values 'Y', 'N') v(c)"),
+            new String[][] { { "N", null }, { "Y", "true" }});
+    }
+
+    /**
+     * Tests for the simple case syntax added in DERBY-1576.
+     */
+    public void testSimpleCaseSyntax() throws SQLException {
+        Statement s = createStatement();
+
+        // Simplest of the simple cases. SQL:1999 syntax, which allows a
+        // single operand per WHEN clause, and the operand is a value
+        // expression.
+        JDBC.assertUnorderedResultSet(s.executeQuery(
+                "select i, case i when 0 then 'zero' "
+                + "when 1 then 'one' when 1+1 then 'two' "
+                + "else 'many' end from "
+                + "(values 0, 1, 2, 3, cast(null as int)) v(i)"),
+            new String[][] {
+                {"0", "zero"},
+                {"1", "one"},
+                {"2", "two"},
+                {"3", "many"},
+                {null, "many"}
+            });
+
+        // SQL:2003 added feature F262 Extended CASE Expression, which
+        // allows more complex WHEN operands. Essentially, it allows any
+        // last part of a predicate (everything after the left operand).
+        JDBC.assertFullResultSet(s.executeQuery(
+                "select i, case i when < 0 then 'negative' "
+                        + "when < 10 then 'small' "
+                        + "when between 10 and 20 then 'medium' "
+                        + "when in (19, 23, 29, 37, 41) then 'prime' "
+                        + "when = some (values 7, 42) then 'lucky number' "
+                        + "when >= 40 then 'big' end "
+                        + "from (values -1, 0, 1, 2, 3, 8, 9, 10, 17, 19, "
+                        + "29, 37, 38, 39, 40, 41, 42, 50) v(i) order by i"),
+            new String[][] {
+                { "-1", "negative" },
+                { "0", "small" },
+                { "1", "small" },
+                { "2", "small" },
+                { "3", "small" },
+                { "8", "small" },
+                { "9", "small" },
+                { "10", "medium" },
+                { "17", "medium" },
+                { "19", "medium" },
+                { "29", "prime" },
+                { "37", "prime" },
+                { "38", null },
+                { "39", null },
+                { "40", "big" },
+                { "41", "prime" },
+                { "42", "lucky number" },
+                { "50", "big" },
+            });
+
+        JDBC.assertUnorderedResultSet(s.executeQuery(
+                "select c, case c "
+                + "when like 'abc%' then 0 "
+                + "when like 'x%%' escape 'x' then 1 "
+                + "when = all (select ibmreqd from sysibm.sysdummy1) then 2 "
+                + "when 'xyz' || 'zyx' then 3 "
+                + "when is null then 4 "
+                + "when is not null then 5 end "
+                + "from (values 'abcdef', 'xyzzyx', '%s', 'hello', "
+                + "cast(null as char(1)), 'Y', 'N') v(c)"),
+            new String[][] {
+                { "abcdef", "0" },
+                { "xyzzyx", "3" },
+                { "%s", "1" },
+                { "hello", "5" },
+                { null, "4" },
+                { "Y", "2" },
+                { "N", "5" },
+            });
+
+        // SQL:2011 added feature F263 Comma-separated predicates in simple
+        // CASE expression, which allows multiple operands per WHEN clause.
+        JDBC.assertFullResultSet(s.executeQuery(
+                "select i, case i "
+                + "when between 2 and 3, 5, =7 then 'prime' "
+                + "when <1, >7 then 'out of range' "
+                + "when is not null then 'small' end "
+                + "from (values 0, 1, 2, 3, 4, 5, 6, 7, 8, cast(null as int)) "
+                + "as v(i) order by i"),
+            new String[][] {
+                { "0", "out of range" },
+                { "1", "small" },
+                { "2", "prime" },
+                { "3", "prime" },
+                { "4", "small" },
+                { "5", "prime" },
+                { "6", "small" },
+                { "7", "prime" },
+                { "8", "out of range" },
+                { null, null },
+            });
+
+        JDBC.assertUnorderedResultSet(s.executeQuery(
+                "select c, case c "
+                + "when in ('ab', 'cd'), like '_' then 'matched' "
+                + "else 'not matched' end "
+                + "from (values cast('a' as varchar(1)), 'b', 'c', 'ab', "
+                + "'cd', 'ac', 'abc') v(c)"),
+            new String[][] {
+                { "a",   "matched" },
+                { "b",   "matched" },
+                { "c",   "matched" },
+                { "ab",  "matched" },
+                { "cd",  "matched" },
+                { "ac",  "not matched" },
+                { "abc", "not matched" },
+            });
+
+        // Untyped null is not allowed as CASE operand. Use typed null instead.
+        assertCompileError("42X01", "values case null when 1 then 'one' end");
+        JDBC.assertSingleValueResultSet(s.executeQuery(
+                "values case cast(null as int) when 1 then 'one' end"),
+            null);
+
+        // Untyped null is not allowed as WHEN operand. Use IS NULL instead.
+        assertCompileError("42X01", "values case 1 when null then 'null' end");
+        JDBC.assertUnorderedResultSet(s.executeQuery(
+                "select i, case i when is null then 1 when is not null "
+                + "then 2 else 3 end from (values 1, cast(null as int)) v(i)"),
+            new String[][] { { "1", "2" }, { null, "1" } });
+
+        // Non-deterministic functions are not allowed in the case operand.
+        assertCompileError("42Y98",
+                "values case sysfun.random() when 1 then true else false end");
+        assertCompileError("42Y98",
+                "values case (values sysfun.random()) "
+                + "when 1 then true else false end");
+
+        // Deterministic functions, on the other hand, are allowed.
+        JDBC.assertFullResultSet(s.executeQuery(
+                "select case sysfun.sin(angle) when < 0 then 'negative' "
+                        + "when > 0 then 'positive' end "
+                        + "from (values -pi()/2, 0, pi()/2) v(angle) "
+                        + "order by angle"),
+            new String[][] { {"negative"}, {null}, {"positive"} });
+
+        // Non-deterministic functions can be used outside of the case operand.
+        JDBC.assertDrainResults(
+            s.executeQuery(
+                "values case 1 when sysfun.random() then sysfun.random() end"),
+            1);
+
+        // Scalar subqueries are allowed in the case operand.
+        JDBC.assertSingleValueResultSet(
+                s.executeQuery("values case (values 1) when 1 then true end"),
+                "true");
+
+        // Non-scalar subqueries are not allowed.
+        assertCompileError(
+                "42X39", "values case (values (1, 2)) when 1 then true end");
+        assertStatementError(
+                "21000", s, "values case (values 1, 2) when 1 then true end");
+
+        // The type of the CASE operand must be compatible with the types
+        // of all the WHEN operands.
+        assertCompileError("42818", "values case 1 when true then 'yes' end");
+        assertCompileError("42818",
+                "values case 1 when 1 then 'yes' when 2 then 'no' "
+                + "when 'three' then 'maybe' end");
+        JDBC.assertSingleValueResultSet(s.executeQuery(
+                "values case cast(1 as bigint)"
+                + " when cast(1 as smallint) then 'yes' end"),
+            "yes");
+
+        // A sequence cannot be accessed anywhere in a CASE expression.
+        s.execute("create sequence d1576_s start with 1");
+        assertCompileError(
+                "42XAH",
+                "values case next value for d1576_s when 1 then 1 else 0 end");
+        assertCompileError(
+                "42XAH",
+                "values case 1 when next value for d1576_s then 1 else 0 end");
+        assertCompileError(
+                "42XAH",
+                "values case 1 when 1 then next value for d1576_s else 0 end");
+
+        // Instead, access the sequence value in a nested query.
+        JDBC.assertSingleValueResultSet(
+                s.executeQuery(
+                    "select case x when 1 then 1 else 0 end from "
+                    + "(values next value for d1576_s) v(x)"),
+                "1");
+
+        s.execute("drop sequence d1576_s restrict");
+
+        // Window functions are allowed.
+        JDBC.assertFullResultSet(
+                s.executeQuery(
+                    "select case row_number() over () when 1 then 'one' "
+                    + "when 2 then 'two' end from (values 1, 1, 1) v(x)"),
+                new String[][] { {"one"}, {"two"}, {null} });
+
+        // Parameters in the case operand have to be typed for now, since the
+        // current type inference doesn't handle multiple types very well.
+        PreparedStatement ps = prepareStatement(
+                "values case cast(? as integer) "
+                + "when 1 then 'one' when 2 then 'two' end");
+        ps.setInt(1, 1);
+        JDBC.assertSingleValueResultSet(ps.executeQuery(), "one");
+        ps.setInt(1, 2);
+        JDBC.assertSingleValueResultSet(ps.executeQuery(), "two");
+        ps.setInt(1, 3);
+        JDBC.assertSingleValueResultSet(ps.executeQuery(), null);
+
+        // This one fails to compile because an integer cannot be checked
+        // with LIKE.
+        assertCompileError("42884",
+                "values case cast(? as integer) "
+                + "when 1 then 1 when like 'abc' then 2 end");
+
+        // Should have been able to infer the type in this case, but
+        // expect failure for now.
+        assertCompileError("42Z09",
+                           "values case ? when 1 then 2 when 3 then 4 end");
+
+        // Should have detected that the types in the WHEN clauses are
+        // incompatible (the first requires the operand to be a number, the
+        // second requires it to be a string). Instead, for now, it fails
+        // because untyped parameters have been forbidden in the case operand.
+        // Used to fail with "Invalid character string format for type int"
+        // during execution before it was forbidden.
+        assertCompileError("42Z09",
+            "values case ? when 1 then true when like 'abc' then false end");
+
+        // Should have detected that the types in the WHEN clauses are
+        // incompatible (the first requires the operand to be a string, the
+        // second requires it to be a number). Instead, for now, it fails
+        // because untyped parameters have been forbidden in the case operand.
+        // Used to fail with an assert failure at compile time before it was
+        // forbidden.
+        assertCompileError("42Z09",
+            "values case ? when like 'abc' then true when 1 then false end");
+    }
 }
