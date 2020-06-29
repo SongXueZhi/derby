@@ -1,0 +1,16 @@
+----------------------------------------------------------------
+Sat May 16 10:28:54 UTC 2020:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.0.0 alpha - (1): instance a816c00e-0172-1d07-8eab-00003135c910 
+on database directory /home/database/derby6692/derby-4222fe98ddeecbedbca29e6d9a5eddc7bd8de43d/generated/toursdb/toursdb with class loader sun.misc.Launcher$AppClassLoader@35a16869 
+Loaded from file:/home/database/derby6692/derby-4222fe98ddeecbedbca29e6d9a5eddc7bd8de43d/classes/
+java.vendor=Sun Microsystems Inc.
+java.runtime.version=1.6.0_24-b07
+user.dir=/home/database/derby6692/derby-4222fe98ddeecbedbca29e6d9a5eddc7bd8de43d/java/demo/toursdb
+os.name=Linux
+os.arch=amd64
+os.version=4.19.76-linuxkit
+derby.system.home=/home/database/derby6692/derby-4222fe98ddeecbedbca29e6d9a5eddc7bd8de43d/generated/toursdb
+Database Class Loader started - derby.database.classpath=''
+----------------------------------------------------------------
+Sat May 16 10:28:54 UTC 2020:
+Shutting down instance a816c00e-0172-1d07-8eab-00003135c910 on database directory /home/database/derby6692/derby-4222fe98ddeecbedbca29e6d9a5eddc7bd8de43d/generated/toursdb/toursdb with class loader sun.misc.Launcher$AppClassLoader@35a16869 
