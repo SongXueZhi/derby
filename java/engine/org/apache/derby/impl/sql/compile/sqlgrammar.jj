@@ -818,6 +818,7 @@ public class SQLParser
 		  case LESS_THAN_OR_EQUALS_OPERATOR:
 		  case GREATER_THAN_OR_EQUALS_OPERATOR:
 		  case IN:
+          case IS:
 		  case LIKE:
 		  case BETWEEN:
 		  	retval = true;
@@ -5444,33 +5445,12 @@ andExpression(ValueNode farLeftOperand) throws StandardException :
 ValueNode
 isSearchCondition() throws StandardException :
 {
-	ValueNode	result;
 	ValueNode	booleanPrimary;
-	Token		isToken = null;
-	Token		notToken = null;
-	Token		truthValue = null;
 }
 {
 	booleanPrimary = booleanPrimary()
-	[
-		isToken = <IS> [ notToken = <NOT> ] <NULL>
-	]
 	{
-		if ( isToken != null )
-		{
-            result = new IsNullNode(booleanPrimary,
-                                    false,
-                                    getContextManager());
-		
-            /* Put the NOT on top of the tree */
-				if (notToken != null)
-				{
-                result = new NotNode(result, getContextManager());
-            }
-        }
-		else { result = booleanPrimary; }
-
-		return result;
+        return booleanPrimary;
 	}
 }
 
@@ -5602,12 +5582,19 @@ remainingNegatablePredicate(ValueNode leftOperand) throws StandardException :
 	ValueNode	betweenLeft;
 	ValueNode	betweenRight;
 	ValueNode	escapeValue = null;
+    Token       notToken = null;
 }
 {
 	<IN> tree = inPredicateValue(leftOperand)
 	{
 		return tree;
 	}
+|
+    <IS> [ notToken = <NOT> ] <NULL>
+    {
+        return new IsNullNode(
+                leftOperand, (notToken != null), getContextManager());
+    }
 |
 	<LIKE> likePattern = additiveExpression(null, 0)
             [
@@ -12553,6 +12540,7 @@ valueSpecification() throws StandardException :
 	ValueNode	   value;
 	ValueNode	   leftExpression;
 	ValueNode	   rightExpression;
+    ValueNode      caseOperand;
 }
 {
 	value = literal()
@@ -12571,82 +12559,76 @@ valueSpecification() throws StandardException :
 		// "NULLIF(L, R)" is the same as "L=R ? untyped NULL : L"
 		// An impl assumption here is that Derby can promote CHAR to any comparable datatypes such as numeric
 		ContextManager cm = getContextManager();
+        ValueNodeList whenList = new ValueNodeList(cm);
         ValueNodeList thenElseList = new ValueNodeList(cm);
+
+        // Generate L = R for the WHEN clause.
+        whenList.addElement(new BinaryRelationalOperatorNode(
+                                    BinaryRelationalOperatorNode.K_EQUALS,
+                                    leftExpression,
+                                    rightExpression,
+                                    false,
+                                    cm));
 
 		//Use untyped null for then clause at this point. At the bind time, we will cast it to the datatype of L 
        thenElseList.addElement(new UntypedNullConstantNode(cm));
 		thenElseList.addElement(leftExpression);
 
-        return new ConditionalNode(
-                   new BinaryRelationalOperatorNode(
-                       BinaryRelationalOperatorNode.K_EQUALS,
-                       leftExpression,
-                       rightExpression,
-                       false,
-                       cm),
-                   thenElseList,
-                   true, // this node is for nullif
-                   cm);
+        return new ConditionalNode(null, whenList, thenElseList, cm);
 	}
 |
 	// CASE WHEN P1 THEN [T1 | NULL] (WHEN Pi THEN [Ti | NULL])* [ELSE E | NULL] END
-	<CASE> value = whenThenExpression()
+    LOOKAHEAD({ getToken(1).kind == CASE && getToken(2).kind == WHEN })
+    <CASE> value = searchedCaseExpression()
 	{
 		return value;
 	}
+|
+    <CASE> caseOperand = valueExpression()
+           value = simpleCaseExpression(caseOperand)
+    {
+        return value;
+    }
 }
 
-/*
- * <A NAME="caseExpression">caseExpression</A>
- */
-ValueNode
-caseExpression() throws StandardException :
+ConditionalNode searchedCaseExpression() throws StandardException :
 {
-	ValueNode	   expr;
+    ContextManager cm = getContextManager();
+    ValueNodeList whenList = new ValueNodeList(cm);
+    ValueNodeList thenElseList = new ValueNodeList(cm);
+    ValueNode elseExpr = null;
 }
 {
-	<END>
-	{
-        ValueNode value = new CastNode(
-            new UntypedNullConstantNode(getContextManager()),
-            DataTypeDescriptor.getBuiltInDataTypeDescriptor(Types.CHAR, 1),
-            getContextManager());
-		((CastNode) value).setForExternallyGeneratedCASTnode();
-		return value;
-	}
-|
-	<ELSE> expr = thenElseExpression() <END>
-	{
-		return expr;
-	}
-|
-	expr = whenThenExpression()
-	{
-		return expr;
-	}
+    ( whenThenExpression(whenList, thenElseList) ) +
+    ( <ELSE> elseExpr = thenElseExpression() ) ?
+    <END>
+    {
+        if (elseExpr == null) {
+            // ELSE NULL is implicit if there is no ELSE clause.
+            elseExpr = new UntypedNullConstantNode(cm);
+        }
+        thenElseList.addElement(elseExpr);
+
+        return new ConditionalNode(null, whenList, thenElseList, cm);
+    }
 }
 
 /*
  * <A NAME="whenThenExpression">whenThenExpression</A>
  */
-ValueNode
-whenThenExpression() throws StandardException :
+void
+whenThenExpression(ValueNodeList whenList, ValueNodeList thenElseList)
+throws StandardException :
 {
 	ValueNode	   expr;
 	ValueNode	   thenExpr;
-	ValueNode	   elseExpr;
 }
 {
 	<WHEN> expr = valueExpression()
 	<THEN> thenExpr = thenElseExpression()
-	elseExpr = caseExpression()
 	{
-		ContextManager cm = getContextManager();
-        ValueNodeList thenElseList = new ValueNodeList(cm);
-		thenElseList.addElement(thenExpr); // then
-		thenElseList.addElement(elseExpr); // else
-
-        return new ConditionalNode(expr, thenElseList, false, cm);
+        whenList.addElement(expr);
+        thenElseList.addElement(thenExpr);
 	}
 }
 
@@ -12662,18 +12644,92 @@ thenElseExpression() throws StandardException :
 	LOOKAHEAD ( {getToken(1).kind == NULL} )
 	<NULL>
 	{
-        ValueNode value = new CastNode(
-            new UntypedNullConstantNode(getContextManager()),
-            DataTypeDescriptor.getBuiltInDataTypeDescriptor(Types.CHAR, 1),
-            getContextManager());
-		((CastNode) value).setForExternallyGeneratedCASTnode();
-		return value;
+        return new UntypedNullConstantNode(getContextManager());
 	}
 |
     expr = valueExpression()
 	{
 		return expr;
 	}
+}
+
+ConditionalNode simpleCaseExpression(ValueNode caseOperand)
+throws StandardException :
+{
+    ContextManager cm = getContextManager();
+    ValueNodeList whenList = new ValueNodeList(cm);
+    ValueNodeList thenElseList = new ValueNodeList(cm);
+    ValueNode elseExpr = null;
+}
+{
+    ( simpleWhenClause(caseOperand, whenList, thenElseList) ) +
+    ( <ELSE> elseExpr = thenElseExpression() ) ?
+    <END>
+    {
+        if (elseExpr == null) {
+            // ELSE NULL is implicit if there is no ELSE clause.
+            elseExpr = new UntypedNullConstantNode(cm);
+        }
+        thenElseList.addElement(elseExpr);
+
+        return new ConditionalNode(caseOperand, whenList, thenElseList, cm);
+    }
+}
+
+void
+simpleWhenClause(ValueNode caseOperand,
+                 ValueNodeList whenList, ValueNodeList thenElseList)
+throws StandardException :
+{
+    ValueNode expr;
+    ValueNode thenExpr;
+}
+{
+    <WHEN> expr = whenOperandList(caseOperand)
+    <THEN> thenExpr = thenElseExpression()
+    {
+        whenList.addElement(expr);
+        thenElseList.addElement(thenExpr);
+    }
+}
+
+ValueNode whenOperandList(ValueNode caseOperand) throws StandardException :
+{
+    ValueNode first;
+    ValueNode rest = null;
+}
+{
+    first = whenOperand(caseOperand)
+    ( <COMMA> rest = whenOperandList(caseOperand) )?
+    {
+        if (rest == null) {
+            return first;
+        } else {
+            return new OrNode(first, rest, getContextManager());
+        }
+    }
+}
+
+ValueNode whenOperand(ValueNode caseOperand) throws StandardException :
+{
+    ContextManager cm = getContextManager();
+    ValueNode expr;
+}
+{
+    // Both remainingPredicate and valueExpression can start with NOT, so
+    // let's look ahead first.
+    LOOKAHEAD({ remainingPredicateFollows() })
+    expr = remainingPredicate(caseOperand)
+    {
+        return expr;
+    }
+|
+    expr = valueExpression()
+    {
+        return new BinaryRelationalOperatorNode(
+                BinaryRelationalOperatorNode.K_EQUALS,
+                caseOperand, expr, false, cm);
+    }
 }
 
 TableElementNode

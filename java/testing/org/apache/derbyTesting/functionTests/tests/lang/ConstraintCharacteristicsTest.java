@@ -457,9 +457,51 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
             "create table t(i int not null " +
             "    constraint c primary key deferrable initially immediate)");
         final DatabaseMetaData dbmd = s.getConnection().getMetaData();
-        final ResultSet rs = dbmd.getIndexInfo(null, null, "T", false, false);
+        ResultSet rs = dbmd.getIndexInfo(null, null, "T", false, false);
         rs.next();
         assertEquals("false", rs.getString("NON_UNIQUE"));
+
+        // Test that we get the right values for DEFERRABILITY in
+        // getImportedKeys, getExportedKeys and getCrossReference
+
+        String[] cchars = new String[]{
+            "deferrable initially immediate",
+            "deferrable initially deferred",
+            "not deferrable"
+        };
+
+        int[] dbmdState = new int[]{
+            DatabaseMetaData.importedKeyInitiallyImmediate,
+            DatabaseMetaData.importedKeyInitiallyDeferred,
+            DatabaseMetaData.importedKeyNotDeferrable,
+        };
+
+        for (int i = 0; i < cchars.length; i++) {
+            s.executeUpdate(
+                    "create table child(i int, constraint c2 foreign key(i) " +
+                    "    references t(i) " + cchars[i] + ")");
+            rs = dbmd.getImportedKeys(null, null, "CHILD");
+            rs.next();
+            assertEquals(
+                    Integer.toString(dbmdState[i]),
+                    rs.getString("DEFERRABILITY"));
+            rs.close();
+
+            rs = dbmd.getExportedKeys(null, null, "T");
+            rs.next();
+            assertEquals(
+                    Integer.toString(dbmdState[i]),
+                    rs.getString("DEFERRABILITY"));
+            rs.close();
+
+            rs = dbmd.getCrossReference(null, null, "T", null, null, "CHILD");
+            rs.next();
+            assertEquals(
+                    Integer.toString(dbmdState[i]),
+                    rs.getString("DEFERRABILITY"));
+            rs.close();
+            s.executeUpdate("drop table child");
+        }
     }
 
 
@@ -788,7 +830,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
 
                 } finally {
                     idx++;
-                    dontThrow(s, "drop table t");
+                    dropTable("t");
                     commit();
                 }
             }
@@ -954,7 +996,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
 
                 } finally {
                     idx++;
-                    dontThrow(s, "drop table t");
+                    dropTable("t");
                     commit();
                 }
             }
@@ -990,7 +1032,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                         s,
                         "call calledNested(false)");
             } finally {
-                dontThrow(s, "drop table t");
+                dropTable("t");
             }
         }
 
@@ -1011,7 +1053,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                             s,
                             "call calledNested(false)");
                 } finally {
-                    dontThrow(s, "drop table t");
+                    dropTable("t");
                     commit();
                 }
             }
@@ -1053,7 +1095,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                         s,
                         "call calledNested(true)");
             } finally {
-                dontThrow(s, "drop table t");
+                dropTable("t");
                 commit();
             }
         }
@@ -1075,7 +1117,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                             s,
                             "call calledNested(true)");
                 } finally {
-                    dontThrow(s, "drop table t");
+                    dropTable("t");
                     commit();
                 }
             }
@@ -1130,7 +1172,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                         s,
                         "call calledNestedFk()");
             } finally {
-                dontThrow(s, "drop table t");
+                dropTable("t");
                 dontThrow(s, "delete from referenced");
                 commit();
             }
@@ -1155,7 +1197,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                             s,
                             "call calledNestedFk()");
                 } finally {
-                    dontThrow(s, "drop table t");
+                    dropTable("t");
                     dontThrow(s, "delete from referenced");
                     commit();
                 }
@@ -1546,7 +1588,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                 commit();
             }
         } finally {
-            dontThrow(s, "drop table t");
+            dropTable("t");
             commit();
         }
     }
@@ -1606,7 +1648,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                 s.executeUpdate("alter table t drop constraint c");
             }
         } finally {
-            dontThrow(s, "drop table t");
+            dropTable("t");
             commit();
         }
     }
@@ -1821,7 +1863,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
         } catch (SQLException e) {
             assertSQLState(LANG_DEFERRED_DUP_VIOLATION_T, e);
         } finally {
-            dontThrow(s, "drop table t");
+            dropTable("t");
             commit();
         }
     }
@@ -1981,8 +2023,8 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                               getConnection());
         } finally {
             // clean up
-            dontThrow(s, "drop table tab1");
-            dontThrow(s, "drop table trigtab");
+            dropTable("tab1");
+            dropTable("trigtab");
             commit();
         }
     }
@@ -2060,7 +2102,7 @@ public class ConstraintCharacteristicsTest extends BaseJDBCTestCase
                               getConnection());
 
         } finally {
-            dontThrow(s, "drop table t");
+            dropTable("t");
             commit();
         }
     }
