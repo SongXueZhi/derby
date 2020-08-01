@@ -2132,7 +2132,7 @@
       
       <test name="${derby.junit.testclass}" todir="junit_${derby.junit.timestamp}">
 	       <formatter type="plain" usefile="false"/>
-	<test>
+	</test>
       <classpath>
      	    <pathelement path="${derby.junit.classpath}"/>
             <pathelement location="${javatools.dir}/junit.jar"/>
