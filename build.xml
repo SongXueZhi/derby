@@ -2130,8 +2130,9 @@
       <sysproperty key="emma.verbosity.level" value="silent"/>
       <formatter type="xml"/>
       
-      <test name="${derby.junit.testclass}" todir="junit_${derby.junit.timestamp}"/>
-
+      <test name="${derby.junit.testclass}" todir="junit_${derby.junit.timestamp}">
+	       <formatter type="plain" usefile="false"/>
+	<test>
       <classpath>
      	    <pathelement path="${derby.junit.classpath}"/>
             <pathelement location="${javatools.dir}/junit.jar"/>
