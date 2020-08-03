@@ -2706,7 +2706,9 @@
       </syspropertyset>
       <formatter type="xml"/>
       
-      <test name="${derby.junit.testclass}" todir="junit_${derby.junit.timestamp}"/>
+      <test name="${derby.junit.testclass}" todir="junit_${derby.junit.timestamp}">
+	        <formatter type="plain" usefile="false"/>
+	      </test>
 
       <classpath>
             <fileset dir="${derby.junit.test.jars}" includes="*.jar"/>
